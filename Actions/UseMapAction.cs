@@ -786,16 +786,7 @@ namespace TianXiaMiner.Actions
                     Rectangle gameRect = new Rectangle(_gameX, _gameY, _windowWidth, _windowHeight);
                     using (Bitmap gameScreenshot = _imageRec.CaptureRegion(gameRect))
                     {
-                        // 保存调试截图
-                        string debugPath = Path.Combine(
-                            AppDomain.CurrentDomain.BaseDirectory,
-                            "Images",
-                            "Screenshots",
-                            $"check_{imageName}_{DateTime.Now:yyyyMMdd_HHmmss}.png"
-                        );
-                        gameScreenshot.Save(debugPath);
-                        Log($"已保存检查截图: {debugPath}");
-
+                       
                         string templatesPath = Path.Combine(
                             AppDomain.CurrentDomain.BaseDirectory,
                             "Images",

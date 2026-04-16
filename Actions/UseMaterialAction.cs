@@ -340,22 +340,6 @@ namespace TianXiaMiner.Actions
                         return false;
                     }
 
-                    // 保存调试截图
-                    string debugPath = Path.Combine(
-                        AppDomain.CurrentDomain.BaseDirectory,
-                        "Images",
-                        "Screenshots",
-                        $"bag_{DateTime.Now:yyyyMMdd_HHmmss}.png"
-                    );
-
-                    string debugDir = Path.GetDirectoryName(debugPath);
-                    if (!Directory.Exists(debugDir))
-                    {
-                        Directory.CreateDirectory(debugDir);
-                    }
-
-                    gameScreenshot.Save(debugPath);
-                    Log($"已保存包裹截图: {debugPath}");
 
                     // 查找包裹界面图片
                     string templatesPath = Path.Combine(

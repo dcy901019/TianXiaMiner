@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -10,22 +11,29 @@ namespace TianXiaMiner.Utils
 {
     /// <summary>
     /// 日志帮助类 - 统一管理所有日志输出
+    /// 支持 ListView 控件显示 + 文件保存
     /// </summary>
     public static class LogHelper
     {
-        private static TextBox _txtLog;
+        private static ListView _listLog;
         private static string _logFilePath;
         private static int _maxLogFiles = 3; // 只保留最新的3个日志文件
+        private static object _lockObj = new object();
 
         /// <summary>
-        /// 初始化日志控件（在Form1_Load中调用）
+        /// 初始化日志控件（在 MainForm_Load 中调用）
         /// </summary>
-        public static void Initialize(TextBox txtLog)
+        public static void Initialize(ListView listLog)
         {
-            _txtLog = txtLog;
-            _txtLog.WordWrap = true;
-            _txtLog.ReadOnly = true;
-            _txtLog.BackColor = System.Drawing.Color.White;
+            _listLog = listLog;
+            _listLog.View = View.Details;
+            _listLog.Columns.Clear();
+            _listLog.Columns.Add("时间", 80, HorizontalAlignment.Left);
+            _listLog.Columns.Add("消息", 500, HorizontalAlignment.Left);
+            _listLog.LabelWrap = false;
+            _listLog.Scrollable = true;
+            _listLog.FullRowSelect = true;
+            _listLog.GridLines = true;
 
             // 初始化日志文件
             InitializeLogFile();
@@ -92,29 +100,52 @@ namespace TianXiaMiner.Utils
         /// </summary>
         public static void Log(string message)
         {
+            Log(message, Color.Black);
+        }
+
+        /// <summary>
+        /// 写入日志（指定颜色）
+        /// </summary>
+        public static void Log(string message, Color color)
+        {
             string timestamp = DateTime.Now.ToString("HH:mm:ss");
             string logMessage = $"[{timestamp}] {message}";
 
-            // 显示到文本框
-            if (_txtLog == null)
+            // 显示到 ListView
+            if (_listLog != null)
             {
-                System.Diagnostics.Debug.WriteLine($"日志控件未初始化: {message}");
-                return;
-            }
-
-            if (_txtLog.InvokeRequired)
-            {
-                _txtLog.Invoke(new Action(() => {
-                    _txtLog.AppendText(logMessage + Environment.NewLine);
-                }));
-            }
-            else
-            {
-                _txtLog.AppendText(logMessage + Environment.NewLine);
+                if (_listLog.InvokeRequired)
+                {
+                    _listLog.Invoke(new Action(() => AddToListView(timestamp, message, color)));
+                }
+                else
+                {
+                    AddToListView(timestamp, message, color);
+                }
             }
 
             // 写入日志文件
             WriteToFile(logMessage);
+        }
+
+        /// <summary>
+        /// 添加日志到 ListView（自动滚动到底部）
+        /// </summary>
+        private static void AddToListView(string timestamp, string message, Color color)
+        {
+            if (_listLog == null) return;
+
+            // 在顶部插入最新日志（和原来一样）
+            ListViewItem item = new ListViewItem(timestamp);
+            item.SubItems.Add(message);
+            item.ForeColor = color;
+            _listLog.Items.Insert(0, item);
+
+            // 可选：限制日志数量，防止内存溢出（保留最近1000条）
+            while (_listLog.Items.Count > 1000)
+            {
+                _listLog.Items.RemoveAt(_listLog.Items.Count - 1);
+            }
         }
 
         /// <summary>
@@ -126,7 +157,10 @@ namespace TianXiaMiner.Utils
             {
                 if (!string.IsNullOrEmpty(_logFilePath))
                 {
-                    File.AppendAllText(_logFilePath, message + Environment.NewLine);
+                    lock (_lockObj)
+                    {
+                        File.AppendAllText(_logFilePath, message + Environment.NewLine);
+                    }
                 }
             }
             catch (Exception ex)
@@ -141,18 +175,18 @@ namespace TianXiaMiner.Utils
         public static void LogRoundComplete(int roundNumber)
         {
             string message = $"\r\n=== 第 {roundNumber} 轮完成 {DateTime.Now:HH:mm:ss} ===\r\n";
+            string timestamp = DateTime.Now.ToString("HH:mm:ss");
+            string displayMessage = $"=== 第 {roundNumber} 轮完成 ===";
 
-            if (_txtLog != null)
+            if (_listLog != null)
             {
-                if (_txtLog.InvokeRequired)
+                if (_listLog.InvokeRequired)
                 {
-                    _txtLog.Invoke(new Action(() => {
-                        _txtLog.AppendText(message);
-                    }));
+                    _listLog.Invoke(new Action(() => AddToListView(timestamp, displayMessage, Color.Blue)));
                 }
                 else
                 {
-                    _txtLog.AppendText(message);
+                    AddToListView(timestamp, displayMessage, Color.Blue);
                 }
             }
 
@@ -164,15 +198,15 @@ namespace TianXiaMiner.Utils
         /// </summary>
         public static void Clear()
         {
-            if (_txtLog == null) return;
+            if (_listLog == null) return;
 
-            if (_txtLog.InvokeRequired)
+            if (_listLog.InvokeRequired)
             {
-                _txtLog.Invoke(new Action(() => _txtLog.Clear()));
+                _listLog.Invoke(new Action(() => _listLog.Items.Clear()));
             }
             else
             {
-                _txtLog.Clear();
+                _listLog.Items.Clear();
             }
 
             // 写入文件分隔线
@@ -180,27 +214,35 @@ namespace TianXiaMiner.Utils
         }
 
         /// <summary>
-        /// 写入错误日志
+        /// 写入错误日志（红色）
         /// </summary>
         public static void LogError(string message)
         {
-            Log($"❌ {message}");
+            Log($"❌ {message}", Color.Red);
         }
 
         /// <summary>
-        /// 写入成功日志
+        /// 写入成功日志（绿色）
         /// </summary>
         public static void LogSuccess(string message)
         {
-            Log($"✅ {message}");
+            Log($"✅ {message}", Color.Green);
         }
 
         /// <summary>
-        /// 写入警告日志
+        /// 写入警告日志（橙色）
         /// </summary>
         public static void LogWarning(string message)
         {
-            Log($"⚠️ {message}");
+            Log($"⚠️ {message}", Color.Orange);
+        }
+
+        /// <summary>
+        /// 写入信息日志（蓝色）
+        /// </summary>
+        public static void LogInfo(string message)
+        {
+            Log(message, Color.Blue);
         }
     }
 }
